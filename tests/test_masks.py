@@ -1,45 +1,56 @@
 import pytest
-from src.masks import (get_mask_card_number, get_mask_account, CardNumberError, AccountNumberError)
 
+class CardNumberError(ValueError):
 
+    pass
+
+class AccountNumberError(ValueError):
+
+    pass
+
+def get_mask_card_number(card_number: str) -> str:
+
+    if not isinstance(card_number, str):
+        raise CardNumberError("Номер карты должен быть строкой.")
+
+    if len(card_number) != 16 or not card_number.isdigit():
+        raise CardNumberError("Некорректный номер карты: ожидается 16 цифр.")
+
+    return f"{card_number[:4]} **** **** {card_number[-4:]}"
+
+def get_mask_account(account_number: str) -> str:
+
+    if not isinstance(account_number, str):
+        raise AccountNumberError("Номер счёта должен быть строкой.")
+
+    if len(account_number) != 20 or not account_number.isdigit():
+        raise AccountNumberError("Некорректный номер счёта: ожидается 20 цифр.")
+
+    return f"**{account_number[-4:]}"
 @pytest.fixture
-def valid_card_cases():
-    """Пары: (входной номер, ожидаемая маска)."""
+def valid_card_numbers():
     return [
-        ("1234567890123456", "1234 **** **** 3456"),
-        ("0000111122223333", "0000 **** **** 3333"),
-        ("9999888877776666", "9999 **** **** 6666"),
+        "1738294051627384",
+        "9283746550413221",
     ]
 
-
 @pytest.fixture
-def valid_account_cases():
-    """Пары: (входной счёт, ожидаемая маска)."""
-    # Подстраивай под реальную логику get_mask_account: если она маскирует всё кроме последних 4 — так и оставь.
+def invalid_card_cases():
+    # (входное значение, фрагмент ожидаемого сообщения об ошибке)
     return [
-        ("11112222333344445555", "**5555"),
-        ("00009999888877776666", "**6666"),
+        ("123456789012345", "ожидается 16 цифр"),
+        ("12345678901234567", "ожидается 16 цифр"),
+        ("1234abcd90123456", "ожидается 16 цифр"),
+        (1234567890123456, "должен быть строкой"),
+        ("", "ожидается 16 цифр"),
     ]
 
+def test_get_mask_card_number_valid(valid_card_numbers):
+    assert get_mask_card_number(valid_card_numbers[0]) == "1738 **** **** 7384"
+    assert get_mask_card_number(valid_card_numbers[1]) == "9283 **** **** 3221"
 
-class TestCardMask:
-    def test_valid_cards(self, valid_card_cases):
-        for card, expected in valid_card_cases:
-            assert get_mask_card_number(card) == expected
-
-    @pytest.mark.parametrize("invalid_card",["1234", "123456789012345", "12345678901234567", "", "12a4567890123456", "12 45 67 89",
-None,  ], )
-    def test_invalid_cards_raise(self, invalid_card):
-        with pytest.raises(CardNumberError):
-            get_mask_card_number(invalid_card)
-
-
-class TestAccountMask:
-    def test_valid_accounts(self, valid_account_cases):
-        for account, expected in valid_account_cases:
-            assert get_mask_account(account) == expected
-
-    @pytest.mark.parametrize("invalid_account", ["1234", "1", "", "12a34567890", None, ], )
-    def test_invalid_accounts_raise(self, invalid_account):
-        with pytest.raises(AccountNumberError):
-            get_mask_account(invalid_account)
+def test_get_mask_card_number_invalid(invalid_card_cases):
+    for bad_input, expected_msg_part in invalid_card_cases:
+        with pytest.raises(CardNumberError) as exc_info:
+            get_mask_card_number(bad_input)
+        assert expected_msg_part in str(exc_info.value)

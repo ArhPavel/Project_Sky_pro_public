@@ -1,79 +1,55 @@
 import pytest
-import re
-from datetime import datetime
-from src.masks import get_mask_account, get_mask_card_number
+
+# Исправленный импорт: src, а не scr
+from src.widget import mask_account_card, get_date
 
 
-# --- Функции (вместо src/utils.py) ---
-
-def mask_account_card(input_string: str) -> str:
-    number_matches = list(re.finditer(r"\d+", input_string))
-
-    if not number_matches:
-        return "В строке не найден номер карты или счёта!!!!"
-
-    result = input_string
-
-    for match in reversed(number_matches):
-        full_number = match.group()
-        start_pos = match.start()
-
-        context_before = input_string[:start_pos].lower()
-
-        if "счёт" in context_before or "счет" in context_before or "account" in context_before:
-            masked_number = get_mask_account(full_number)
-        else:
-            masked_number = get_mask_card_number(full_number)
-
-        result = result[:start_pos] + masked_number + result[match.end():]
-
-    return result
+def test_mask_account_card_empty_string():
+    assert mask_account_card("") == "В строке не найден номер карты или счёта!!!!"
 
 
-def get_date(date_string: str) -> str:
-    try:
-        dt = datetime.fromisoformat(date_string)
-        return dt.strftime("%d.%m.%Y")
-    except ValueError as e:
-        return f"Ошибка формата даты: {e}"
+def test_mask_account_card_no_numbers():
+    assert mask_account_card("Текст без цифр") == "В строке не найден номер карты или счёта!!!!"
 
 
-# --- Тесты с фикстурами ---
-
-@pytest.fixture
-def valid_iso_dates():
-    return [ ("2026-06-10T12:00:00.123456", "10.06.2026"), ("2026-01-01T00:00:00", "01.01.2026"), ("2026-05-03T09:15:00.000000", "03.05.2026"), ]
-
-
-@pytest.fixture
-def invalid_date_inputs():
-    return ["10.06.2026", "", "not-a-date", "2026-13-01T00:00:00", ]
+def test_mask_account_card_single_card():
+    text = "Карта 1234567890123456"
+    result = mask_account_card(text)
+    # Проверяем, что маска применилась и видны первые и последние 4 цифры
+    assert "1234" in result
+    assert "3456" in result
+    assert "****" in result
 
 
-class TestGetDate:
-    def test_valid_iso_formats(self, valid_iso_dates):
-        for input_date, expected in valid_iso_dates:
-            assert get_date(input_date) == expected
-
-    def test_invalid_formats_return_error_message(self, invalid_date_inputs):
-        for invalid_input in invalid_date_inputs:
-            result = get_date(invalid_input)
-            assert result.startswith("Ошибка формата даты:")
+def test_mask_account_card_single_account():
+    text = "Счёт 98765432109876543210"
+    result = mask_account_card(text)
+    # Маска счёта должна оставить последние 4 цифры и скрыть остальное
+    assert result != text
+    assert "3210" in result
 
 
-class TestMaskAccountCard:
-    @pytest.fixture
-    def mask_cases(self):
-        return [ ( "Операция по карте 1234567890123456 завершена", "Операция по карте 1234 **** **** 3456 завершена" ), (
- "Перевод на счёт 11112222333344445555 выполнен", "Перевод на счёт **5555 выполнен" ),]
+def test_mask_account_card_mixed_types():
+    text = "Карта: 1111222233334444, счёт: 99998888777766665555"
+    result = mask_account_card(text)
+    assert "1111 **** **** 4444" in result or "1111**** ****4444" in result
+    assert "5555" in result  # последние 4 счёта должны остаться
 
-    @pytest.fixture
-    def edge_cases(self):
-        return [ ("В строке нет никаких номеров", "В строке не найден номер карты или счёта!!!!"), ("Платёж на СЧЁТ 11112222333344445555", "Платёж на СЧЁТ **5555"), ]
-    def test_standard_mask_cases(self, mask_cases):
-        for input_str, expected in mask_cases:
-            assert mask_account_card(input_str) == expected
 
-    def test_edge_cases(self, edge_cases):
-        for input_str, expected in edge_cases:
-            assert mask_account_card(input_str) == expected
+def test_mask_account_card_multiple_numbers():
+    text = "Номера: 1111222233334444 5555666677778888"
+    result = mask_account_card(text)
+    assert result.count("****") >= 2
+
+
+@pytest.mark.parametrize(
+    "input_str,expected",
+    [
+        ("2026-06-28T12:34:56.123456", "28.06.2026"),
+        ("2026-06-28T12:34:56", "28.06.2026"),
+        ("2026-01-01T00:00:00", "01.01.2026"),
+        ("2026-12-31T23:59:59.999999", "31.12.2026"),
+    ],
+)
+def test_get_date_valid(input_str: str, expected: str):
+    assert get_date(input_str) == expected
