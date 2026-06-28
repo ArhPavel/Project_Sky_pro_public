@@ -1,4 +1,7 @@
-from typing import List, Dict, Any
+from datetime import datetime
+from typing import Any, Dict, List
+
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 
 
 def filter_by_state(data_list: List[Dict[str, Any]], state: str = "EXECUTED") -> List[Dict[str, Any]]:
@@ -6,16 +9,29 @@ def filter_by_state(data_list: List[Dict[str, Any]], state: str = "EXECUTED") ->
     return [item for item in data_list if item.get("state") == state]
 
 
+def _is_valid_iso_date(date_str: Any) -> bool:
+    if not isinstance(date_str, str):
+        return False
+    try:
+        datetime.strptime(date_str, DATE_FORMAT)
+        return True
+    except ValueError:
+        return False
+
+
 def sort_by_date(data_list: List[Dict[str, Any]], reverse_order: bool = True) -> List[Dict[str, Any]]:
-    """Сортирует данные по дате."""
+    """Сортирует данные по дате. Невалидные/отсутствующие даты идут в конец."""
+    valid = []
+    invalid = []
 
-    def safe_get_date(item: Dict[str, Any]) -> str:
-        try:
-            date_value = item["date"]
-            if isinstance(date_value, str):
-                return date_value
-            return ""
-        except KeyError:
-            return ""
+    for item in data_list:
+        date_value = item.get("date")
+        if _is_valid_iso_date(date_value):
+            valid.append(item)
+        else:
+            invalid.append(item)
 
-    return sorted(data_list, key=safe_get_date, reverse=reverse_order)
+    # Сортируем только валидные по строке даты
+    valid_sorted = sorted(valid, key=lambda x: x["date"], reverse=reverse_order)
+
+    return valid_sorted + invalid
