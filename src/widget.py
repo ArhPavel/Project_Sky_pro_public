@@ -1,9 +1,10 @@
 import re
 from datetime import datetime
 
-from masks import get_mask_account, get_mask_card_number
+from .masks import get_mask_account, get_mask_card_number
 
 
+# Исправленный импорт: относительный путь внутри src
 def mask_account_card(input_string: str) -> str:
     """Обрабатывает строку с типами и номерами карт/счетов, возвращает строку с маскированными номерами."""
     # Находим все последовательности цифр с их позициями
