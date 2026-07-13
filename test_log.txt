@@ -1,0 +1,8 @@
+h ok
+h ok
+h ok
+k error: ZeroDivisionError. Inputs: (0,), {}
+h ok
+k error: ZeroDivisionError. Inputs: (0,), {}
+k error: ZeroDivisionError. Inputs: (0,), {}
+h ok
