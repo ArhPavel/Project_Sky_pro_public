@@ -3,6 +3,9 @@ from typing import Any, Optional
 
 
 def log(filename: Optional[str] = None) -> Any:
+    """Декоратор, который будет автоматически логировать начало и
+    конец выполнения    функции, а также ее результаты или возникшие
+     ошибки"""
     def decorator(func: Any) -> Any:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
