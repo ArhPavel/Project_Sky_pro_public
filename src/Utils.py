@@ -3,23 +3,37 @@ import logging
 import os
 from typing import Any, Dict, List
 
+
+module_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(module_dir)
+logs_dir = os.path.join(project_root, "logs")
+
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+
 logger = logging.getLogger(__name__)
 
+if not logger.handlers:
+    log_file_path = os.path.join(logs_dir, "utils.log")
+    file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter(
+        "%(asctime)s | %(name)s | %(levelname)-8s | %(message)s"
+    )
+    file_handler.setFormatter(formatter)
+
+    logger.addHandler(file_handler)
+    logger.setLevel(logging.DEBUG)
+logger.info("utils.py: логгер настроен, путь: %s", logs_dir)
 
 def load_transactions(file_path: str) -> List[Dict[str, Any]]:
-    """
-    Загружает список транзакций из JSON-файла.
 
-    Возвращает пустой список, если:
-      - файл не найден,
-      - файл пустой,
-      - содержимое не является списком,
-      - JSON невалиден.
-    """
     logger.debug("Попытка загрузки транзакций из файла: %s", file_path)
 
     if not os.path.isfile(file_path):
-        logger.error("Файл транзакций не найден: %s", file_path)
+        # Если файл не найден, возможно, путь относительный и cwd не тот.
+        logger.error("Файл транзакций не найден: %s (текущая директория: %s)", file_path, os.getcwd())
         return []
 
     try:
