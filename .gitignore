@@ -218,5 +218,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-transactions.csv
-transactions_excel.xlsx
+/transactions.csv
+/transactions_excel.xlsx
