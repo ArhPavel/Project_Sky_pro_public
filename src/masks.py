@@ -1,7 +1,6 @@
 import logging
 import os
 
-
 module_dir = os.path.dirname(os.path.abspath(__file__))
 
 project_root = os.path.dirname(module_dir)
@@ -19,9 +18,7 @@ if not logger.handlers:
     file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
 
-    formatter = logging.Formatter(
-        "%(asctime)s | %(name)s | %(levelname)-8s | %(message)s"
-    )
+    formatter = logging.Formatter("%(asctime)s | %(name)s | %(levelname)-8s | %(message)s")
     file_handler.setFormatter(formatter)
 
     logger.addHandler(file_handler)
@@ -29,8 +26,10 @@ if not logger.handlers:
 
 logger.info("masks.py: логгер настроен, путь: %s", logs_dir)
 
+
 class CardNumberError(ValueError):
     """Ошибка при некорректном номере карты."""
+
     pass
 
 
