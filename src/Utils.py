@@ -26,7 +26,7 @@ logger.info("utils.py: логгер настроен, путь: %s", logs_dir)
 
 
 def load_transactions(file_path: str) -> List[Dict[str, Any]]:
-
+""" Функция загрузки json файла и вывод транзакций"""
     logger.debug("Попытка загрузки транзакций из файла: %s", file_path)
 
     if not os.path.isfile(file_path):
