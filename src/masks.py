@@ -1,18 +1,18 @@
 import logging
 import os
 
+# --- Настройка путей и логгера ---
 module_dir = os.path.dirname(os.path.abspath(__file__))
-
 project_root = os.path.dirname(module_dir)
-
 logs_dir = os.path.join(project_root, "logs")
 
-
+# Создаем папку для логов, если её нет
 if not os.path.exists(logs_dir):
     os.makedirs(logs_dir)
 
 logger = logging.getLogger(__name__)
 
+# Защита от добавления нескольких одинаковых хендлеров при множественных импортах
 if not logger.handlers:
     log_file_path = os.path.join(logs_dir, "masks.log")
     file_handler = logging.FileHandler(log_file_path, encoding="utf-8")
@@ -29,7 +29,6 @@ logger.info("masks.py: логгер настроен, путь: %s", logs_dir)
 
 class CardNumberError(ValueError):
     """Ошибка при некорректном номере карты."""
-
     pass
 
 
@@ -38,15 +37,48 @@ def get_mask_card_number(card_number: str) -> str:
         logger.error("Номер карты должен быть строкой. Получено: %r", card_number)
         raise CardNumberError("Номер карты должен быть строкой.")
 
-    if len(card_number) != 16 or not card_number.isdigit():
+    # Убираем пробелы/тире для проверки длины, если нужно, но по ТЗ строго 16 цифр
+    clean_number = card_number.replace(" ", "").replace("-", "")
+
+    if len(clean_number) != 16 or not clean_number.isdigit():
         logger.error(
             "Некорректный номер карты: ожидается 16 цифр. Получено: %r (длина %d)",
             card_number,
-            len(card_number) if isinstance(card_number, str) else 0,
+            len(clean_number),
         )
         raise CardNumberError("Некорректный номер карты: ожидается 16 цифр.")
 
-    # Теперь эта ветка достижима только при корректных данных
-    masked = f"{card_number[:4]} **** **** {card_number[-4:]}"
-    logger.debug("Замаскирован номер карты: %s", masked)  # <-- теперь достижимо
+    masked = f"{clean_number[:4]} **** **** {clean_number[-4:]}"
+    logger.debug("Замаскирован номер карты: %s", masked)
     return masked
+
+
+def get_mask_account(account_number: str) -> str:
+    """
+    Маскирует номер счёта.
+    Формат вывода: **XXXX (видны только последние 4 цифры).
+
+    :param account_number: Строка с номером счёта (должны быть только цифры).
+    :return: Замаскированная строка.
+    :raises CardNumberError: Если номер некорректен.
+    """
+    if not isinstance(account_number, str):
+        logger.error("Номер счёта должен быть строкой. Получено: %r", account_number)
+        raise CardNumberError("Номер счёта должен быть строкой.")
+
+    # Очищаем от пробелов/тире для валидации
+    clean_account = account_number.replace(" ", "").replace("-", "")
+
+    if not clean_account.isdigit():
+        logger.error("Номер счёта содержит недопустимые символы: %r", account_number)
+        raise CardNumberError("Номер счёта должен содержать только цифры.")
+
+    if len(clean_account) < 4:
+        logger.error("Слишком короткий номер счёта: %r (требуется минимум 4 цифры)", account_number)
+        raise CardNumberError("Слишком короткий номер счёта (требуется минимум 4 цифры).")
+
+    last_four = clean_account[-4:]
+    result = f"**{last_four}"
+
+    logger.debug("Замаскирован номер счёта: исходный=%s, результат=%s", account_number, result)
+    return result
