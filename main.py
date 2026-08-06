@@ -1,7 +1,7 @@
 import os
-from typing import List, Dict, Any, Optional
-from src.transaction_reader import load_csv_transactions, load_excel_transactions, load_json_transactions
+from typing import Any, Dict, List, Optional
 
+from src.transaction_reader import load_csv_transactions, load_excel_transactions, load_json_transactions
 
 AVAILABLE_STATUSES = {"EXECUTED", "CANCELED", "PENDING"}
 
@@ -67,10 +67,8 @@ def sort_transactions(transactions: List[Dict[Any, Any]], ascending: bool) -> Li
     def sort_key(t: Dict[Any, Any]) -> str:
         date_str = str(t.get("date", ""))
         parsed = parse_date_for_sort(date_str)
-        # Если дата не распознана, ставим в конец (или начало) — зависит от логики.
-        # Здесь: невалидные даты будут в конце при ascending=True
+        # Если дата не распознана, ставим в конец при ascending=True
         if parsed is None:
-            # Чтобы они были в конце, используем строку, которая будет "больше" любой валидной
             return "9999-99-99" if ascending else "0000-00-00"
         return parsed
 
@@ -78,7 +76,11 @@ def sort_transactions(transactions: List[Dict[Any, Any]], ascending: bool) -> Li
 
 
 def format_amount(amount: Any, currency: Any) -> str:
-    amount_val = float(amount) if amount else 0.0
+    try:
+        amount_val = float(amount) if amount else 0.0
+    except (ValueError, TypeError):
+        amount_val = 0.0
+
     currency_val = str(currency).strip().upper() if currency else ""
     if currency_val == "RUB":
         return f"{amount_val:.0f} руб."
@@ -109,7 +111,7 @@ def print_transactions(transactions: List[Dict[Any, Any]]) -> None:
         print(f"Сумма: {formatted_amount}\n")
 
 
-def main()-> None:
+def main() -> None:
     print("Программа: Привет! Добро пожаловать в программу работы с банковскими транзакциями.")
     print("Выберите необходимый пункт меню:")
     print("1. Получить информацию о транзакциях из JSON-файла")
@@ -117,14 +119,14 @@ def main()-> None:
     print("3. Получить информацию о транзакциях из XLSX-файла")
 
     choice = input().strip()
-
-    # Определяем путь к файлу
     current_file = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_file)  # src/
     project_root = os.path.dirname(current_dir)  # корень проекта
     data_dir = os.path.join(project_root, "data")
 
     file_path = None
+    transactions = []
+
     if choice == "1":
         print("Программа: Для обработки выбран JSON-файл.")
         file_path = os.path.join(data_dir, "transactions.json")
@@ -145,35 +147,28 @@ def main()-> None:
         print("Программа: Не удалось загрузить транзакции (файл пуст или не найден).")
         return
 
-
     status = get_valid_status()
 
-
-    filtered = filter_transactions(transactions, status, only_rub=False, search_text=None)
-
-    # Сортировка по дате?
-    sort_choice = input('Программа: Отсортировать операции по дате? Да/Нет\n').strip().lower()
+    sort_choice = input("Программа: Отсортировать операции по дате? Да/Нет\n").strip().lower()
     do_sort = sort_choice in ("да", "д", "yes", "y")
 
     ascending = True
     if do_sort:
-        order_choice = input('Программа: Отсортировать по возрастанию или по убыванию?\n').strip().lower()
+        order_choice = input("Программа: Отсортировать по возрастанию или по убыванию?\n").strip().lower()
         ascending = order_choice in ("по возрастанию", "возрастание", "asc", "a", "да", "д")
 
-    # Только рублёвые?
-    rub_choice = input('Программа: Выводить только рублевые транзакции? Да/Нет\n').strip().lower()
+    rub_choice = input("Программа: Выводить только рублевые транзакции? Да/Нет\n").strip().lower()
     only_rub = rub_choice in ("да", "д", "yes", "y")
 
-    # Поиск по описанию?
-    search_choice = input('Программа: Отфильтровать список транзакций по определённому слову в описании? Да/Нет\n').strip().lower()
+    search_choice = (
+        input("Программа: Отфильтровать список транзакций по определённому слову в описании? Да/Нет\n").strip().lower()
+    )
     search_text = None
     if search_choice in ("да", "д", "yes", "y"):
         search_text = input("Программа: Введите слово для поиска в описании:\n").strip()
 
-    # Применяем все фильтры
-    final_list = filter_transactions(filtered, status, only_rub, search_text)
+    final_list = filter_transactions(transactions, status, only_rub, search_text)
 
-    # Сортируем
     if do_sort:
         final_list = sort_transactions(final_list, ascending)
 
