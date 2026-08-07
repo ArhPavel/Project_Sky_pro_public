@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime
 from typing import Any, Dict, List
 
@@ -31,7 +32,17 @@ def sort_by_date(data_list: List[Dict[str, Any]], reverse_order: bool = True) ->
         else:
             invalid.append(item)
 
-    # Сортируем только валидные по строке даты
     valid_sorted = sorted(valid, key=lambda x: x["date"], reverse=reverse_order)
-
     return valid_sorted + invalid
+
+
+def count_by_category(transactions: List[Dict[str, Any]]) -> Counter[str]:
+    """
+    Подсчитывает количество операций по полю 'category'.
+    Если категории нет — считает как 'unknown'.
+
+    :param transactions: список транзакций (словарей)
+    :return: collections.Counter с количеством операций по категориям
+    """
+    categories = [t.get("category", "unknown") for t in transactions]
+    return Counter(categories)

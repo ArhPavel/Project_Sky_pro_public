@@ -2,7 +2,6 @@ import csv
 import json
 import os
 import typing as t
-from collections import Counter
 
 try:
     import pandas as pd
@@ -60,9 +59,9 @@ def load_excel_transactions(file_path: str) -> list[RowType]:
 
 def load_json_transactions(file_path: str) -> list[RowType]:
     """
-    Читает JSON файл по переданному полному пути.
-    Ожидается список объектов (список словарей).
-    При ошибке или неверной структуре — пустой список.
+    Заглушка для чтения JSON: читает файл и возвращает список словарей.
+    При ошибке или отсутствии файла — пустой список.
+    Реализована для возможности вызова из main.
     """
     if not os.path.isfile(file_path):
         print(f"Файл не найден (JSON): {file_path}")
@@ -73,27 +72,19 @@ def load_json_transactions(file_path: str) -> list[RowType]:
             data = json.load(f)
 
         if isinstance(data, list):
-            transactions = data
-        elif isinstance(data, dict):
-            transactions = [data]
-        else:
-            print("Ошибка: JSON не содержит список или словарь.")
-            return []
+            print(f"JSON успешно загружен: {len(data)} записей")
+            return data
 
-        print(f"JSON успешно загружен: {len(transactions)} записей")
-        return transactions
+        if isinstance(data, dict):
+            result = [data]
+            print("JSON успешно загружен: 1 запись (преобразована в список)")
+            return result
+
+        print("Неподдерживаемая структура JSON: ожидается список или словарь.")
+        return []
     except Exception as e:
         print(f"Ошибка при чтении JSON: {e}")
         return []
-
-
-def get_currency_distribution(transactions: list[RowType]) -> Counter[str]:
-    """
-    Возвращает Counter с количеством транзакций по валютам.
-    Ожидается, что в каждой транзакции есть ключ 'currency'.
-    """
-    currencies = [t.get("currency") for t in transactions if t.get("currency")]
-    return Counter(currencies)
 
 
 if __name__ == "__main__":
@@ -107,20 +98,24 @@ if __name__ == "__main__":
 
     csv_full_path = os.path.join(data_dir, "transactions.csv")
     excel_full_path = os.path.join(data_dir, "transactions_excel.xlsx")
+    json_full_path = os.path.join(data_dir, "transactions.json")
 
-    print(f"\nПопытка чтения CSV: {csv_full_path}")
+    print(f"\nПопытка чтения: {csv_full_path}")
     csv_data = load_csv_transactions(csv_full_path)
+
     for i, row in enumerate(csv_data[:5]):
         print(f"{i + 1}. {row}")
 
-    print(f"\nПопытка чтения Excel: {excel_full_path}")
+    print(f"\nПопытка чтения: {excel_full_path}")
     excel_data = load_excel_transactions(excel_full_path)
+
     for i, row in enumerate(excel_data[:5]):
         print(f"{i + 1}. {row}")
 
-    all_data = csv_data + excel_data
-    if all_data:
-        stats = get_currency_distribution(all_data)
-        print("\nРаспределение по валютам (Counter):", stats)
+    print(f"\nПопытка чтения: {json_full_path}")
+    json_data = load_json_transactions(json_full_path)
+
+    for i, row in enumerate(json_data[:5]):
+        print(f"{i + 1}. {row}")
 
     print("\nГотово")

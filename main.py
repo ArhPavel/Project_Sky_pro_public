@@ -1,13 +1,15 @@
 import os
+from collections import Counter
 from typing import Any, Dict, List, Optional
 
 from src.transaction_reader import load_csv_transactions, load_excel_transactions, load_json_transactions
+from src.processing import count_by_category, sort_by_date
+from src.masks import get_mask_card_number, get_mask_account
 
 AVAILABLE_STATUSES = {"EXECUTED", "CANCELED", "PENDING"}
 
 
 def get_valid_status() -> str:
-    """Запрашивает у пользователя статус и проверяет его (регистронезависимо)."""
     while True:
         user_input = input(
             "Введите статус, по которому необходимо выполнить фильтрацию.\n"
@@ -22,10 +24,6 @@ def get_valid_status() -> str:
 
 
 def parse_date_for_sort(date_str: str) -> Optional[str]:
-    """
-    Пытается привести дату к формату YYYY-MM-DD для корректной сортировки.
-    Ожидается формат DD.MM.YYYY. Если не удаётся — возвращаем None.
-    """
     parts = date_str.strip().split(".")
     if len(parts) == 3:
         day, month, year = parts
@@ -42,18 +40,15 @@ def filter_transactions(
 ) -> List[Dict[Any, Any]]:
     result = []
     for t in transactions:
-        # Статус (регистронезависимый)
         t_status = str(t.get("status", "")).upper()
         if t_status != status:
             continue
 
-        # Только рубли
         if only_rub:
             currency = str(t.get("currency", "")).strip().upper()
             if currency != "RUB":
                 continue
 
-        # Поиск по тексту описания
         if search_text:
             desc = str(t.get("description", "")).lower()
             if search_text.lower() not in desc:
@@ -67,7 +62,6 @@ def sort_transactions(transactions: List[Dict[Any, Any]], ascending: bool) -> Li
     def sort_key(t: Dict[Any, Any]) -> str:
         date_str = str(t.get("date", ""))
         parsed = parse_date_for_sort(date_str)
-        # Если дата не распознана, ставим в конец при ascending=True
         if parsed is None:
             return "9999-99-99" if ascending else "0000-00-00"
         return parsed
@@ -90,6 +84,28 @@ def format_amount(amount: Any, currency: Any) -> str:
         return f"{amount_val:.2f} {currency_val}"
 
 
+def mask_sensitive_info(transaction: Dict[str, Any]) -> Dict[str, Any]:
+    """Маскирует чувствительные данные в одной транзакции (карта/счёт)."""
+    t = transaction.copy()
+
+    card = t.get("card")
+    if card:
+        try:
+            t["card"] = get_mask_card_number(str(card))
+        except Exception:
+            # Если маска не удалась, оставляем как есть или ставим заглушку
+            t["card"] = "**** **** **** ****"
+
+    account = t.get("account")
+    if account:
+        try:
+            t["account"] = get_mask_account(str(account))
+        except Exception:
+            t["account"] = "********"
+
+    return t
+
+
 def print_transactions(transactions: List[Dict[Any, Any]]) -> None:
     if not transactions:
         print("Не найдено ни одной транзакции, подходящей под ваши условия фильтрации.")
@@ -97,11 +113,13 @@ def print_transactions(transactions: List[Dict[Any, Any]]) -> None:
 
     print(f"\nВсего банковских операций в выборке: {len(transactions)}\n")
     for t in transactions:
-        date = t.get("date", "")
-        desc = t.get("description", "")
-        account = t.get("account", "")
-        amount = t.get("amount")
-        currency = t.get("currency", "")
+        masked = mask_sensitive_info(t)
+
+        date = masked.get("date", "")
+        desc = masked.get("description", "")
+        account = masked.get("account", "")
+        amount = masked.get("amount")
+        currency = masked.get("currency", "")
 
         formatted_amount = format_amount(amount, currency)
 
@@ -119,13 +137,14 @@ def main() -> None:
     print("3. Получить информацию о транзакциях из XLSX-файла")
 
     choice = input().strip()
+
+    # Вычисляем путь к data относительно расположения main.py
     current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file)  # src/
-    project_root = os.path.dirname(current_dir)  # корень проекта
-    data_dir = os.path.join(project_root, "data")
+    current_dir = os.path.dirname(current_file)  # обычно это корень, если запускаешь python main.py
+    data_dir = os.path.join(current_dir, "data")
 
     file_path = None
-    transactions = []
+    transactions: List[Dict[str, Any]] = []
 
     if choice == "1":
         print("Программа: Для обработки выбран JSON-файл.")
@@ -170,11 +189,6 @@ def main() -> None:
     final_list = filter_transactions(transactions, status, only_rub, search_text)
 
     if do_sort:
-        final_list = sort_transactions(final_list, ascending)
+        final_list = sort_transactions(final_list, ascending=ascending)
 
-    print("\nПрограмма: Распечатываю итоговый список транзакций...")
     print_transactions(final_list)
-
-
-if __name__ == "__main__":
-    main()
