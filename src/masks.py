@@ -5,11 +5,9 @@ module_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(module_dir)
 logs_dir = os.path.join(project_root, "logs")
 
-
 os.makedirs(logs_dir, exist_ok=True)
 
 logger = logging.getLogger(__name__)
-
 
 if not logger.handlers:
     log_file_path = os.path.join(logs_dir, "masks.log")
@@ -30,15 +28,6 @@ class CardNumberError(ValueError):
 
 
 def get_mask_card_number(card_number: str) -> str:
-    """
-    Маскирует номер карты в формате: XXXX **** **** XXXX.
-
-    Принимаются строки с пробелами и тире. Ожидается ровно 16 цифр.
-
-    :param card_number: Номер карты (строка).
-    :return: Замаскированная строка.
-    :raises CardNumberError: Если номер некорректен.
-    """
     if not isinstance(card_number, str):
         logger.error("Номер карты должен быть строкой. Получено: %r", card_number)
         raise CardNumberError("Номер карты должен быть строкой.")
@@ -59,17 +48,6 @@ def get_mask_card_number(card_number: str) -> str:
 
 
 def get_mask_account(account_number: str) -> str:
-    """
-    Маскирует номер счёта.
-
-    Формат вывода: **XXXX (видны только последние 4 цифры).
-
-    Принимаются строки с цифрами, допускаются пробелы и тире.
-
-    :param account_number: Номер счёта (строка).
-    :return: Замаскированная строка.
-    :raises CardNumberError: Если номер некорректен.
-    """
     if not isinstance(account_number, str):
         logger.error("Номер счёта должен быть строкой. Получено: %r", account_number)
         raise CardNumberError("Номер счёта должен быть строкой.")

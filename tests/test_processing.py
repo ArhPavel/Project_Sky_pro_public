@@ -52,3 +52,23 @@ def test_sort_by_date_asc(sample_data):
 
     invalid_ids = {item["id"] for item in result[3:]}
     assert invalid_ids == {4, 5, 6}
+
+    def filter_by_state(transactions: List[Dict[Any, Any]], state: str) -> List[Dict[Any, Any]]:
+        """Фильтрует транзакции по полю status (с учётом регистра)."""
+        return [tx for tx in transactions if str(tx.get("status", "")).upper() == state.upper()]
+
+    def sort_by_date(transactions: List[Dict[Any, Any]], reverse_order: bool = False) -> List[Dict[Any, Any]]:
+        """Сортирует по полю date. Если даты нет или формат непонятный, относит к концу."""
+
+        def sort_key(tx: Dict[Any, Any]):
+            date = tx.get("date")
+            # Можно добавить парсинг даты, если нужно строгое сравнение.
+            # Сейчас сортируем по строковому значению.
+            return date if date is not None else ""
+
+        return sorted(transactions, key=sort_key, reverse=reverse_order)
+
+def filter_by_state(transactions: List[Dict[Any, Any]], state: str) -> List[Dict[Any, Any]]:
+        """Фильтрует транзакции по полю status (с учётом регистра)."""
+    return [tx for tx in transactions if str(tx.get("status", "")).upper() == state.upper()]
+

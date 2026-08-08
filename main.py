@@ -1,132 +1,126 @@
 import os
-from collections import Counter
 from typing import Any, Dict, List, Optional
 
+from src.masks import get_mask_account, get_mask_card_number
+from src.processing import count_by_category, filter_by_state, filter_rub_transactions, sort_by_date
 from src.transaction_reader import load_csv_transactions, load_excel_transactions, load_json_transactions
-from src.processing import count_by_category, sort_by_date
-from src.masks import get_mask_card_number, get_mask_account
 
-AVAILABLE_STATUSES = {"EXECUTED", "CANCELED", "PENDING"}
+
+# НАСТРОЙКА ПУТЕЙ (ОДИН РАЗ В ТОЧКЕ ВХОДА)
+
+project_root = os.getcwd()
+data_dir = os.path.join(project_root, "data")
+
+csv_path = os.path.join(data_dir, "transactions.csv")
+excel_path = os.path.join(data_dir, "transactions_excel.xlsx")
+json_path = os.path.join(data_dir, "transactions.json")
+
+
+
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+
 
 
 def get_valid_status() -> str:
+    allowed = {"EXECUTED", "CANCELED", "PENDING"}
+
     while True:
         user_input = input(
             "Введите статус, по которому необходимо выполнить фильтрацию.\n"
-            "Доступные для фильтровки статусы: EXECUTED, CANCELED, PENDING\n"
+            "Доступные для фильтрации статусы: EXECUTED, CANCELED, PENDING\n> "
         ).strip()
-        normalized = user_input.upper()
-        if normalized in AVAILABLE_STATUSES:
-            print(f'Операции отфильтрованы по статусу "{normalized}"')
-            return normalized
+
+        status = user_input.upper()
+
+        if status in allowed:
+            print(f'Операции отфильтрованы по статусу "{status}"')
+            return status
         else:
             print(f'Статус операции "{user_input}" недоступен.')
 
 
-def parse_date_for_sort(date_str: str) -> Optional[str]:
-    parts = date_str.strip().split(".")
-    if len(parts) == 3:
-        day, month, year = parts
-        if all(p.isdigit() for p in parts):
-            return f"{year}-{month}-{day}"
-    return None
-
-
-def filter_transactions(
-    transactions: List[Dict[Any, Any]],
-    status: str,
-    only_rub: bool,
-    search_text: Optional[str],
-) -> List[Dict[Any, Any]]:
-    result = []
-    for t in transactions:
-        t_status = str(t.get("status", "")).upper()
-        if t_status != status:
-            continue
-
-        if only_rub:
-            currency = str(t.get("currency", "")).strip().upper()
-            if currency != "RUB":
-                continue
-
-        if search_text:
-            desc = str(t.get("description", "")).lower()
-            if search_text.lower() not in desc:
-                continue
-
-        result.append(t)
-    return result
-
-
-def sort_transactions(transactions: List[Dict[Any, Any]], ascending: bool) -> List[Dict[Any, Any]]:
-    def sort_key(t: Dict[Any, Any]) -> str:
-        date_str = str(t.get("date", ""))
-        parsed = parse_date_for_sort(date_str)
-        if parsed is None:
-            return "9999-99-99" if ascending else "0000-00-00"
-        return parsed
-
-    return sorted(transactions, key=sort_key, reverse=not ascending)
-
-
-def format_amount(amount: Any, currency: Any) -> str:
+def format_currency_amount(amount: Any, currency: Optional[str]) -> str:
     try:
-        amount_val = float(amount) if amount else 0.0
+        val = float(amount)
     except (ValueError, TypeError):
-        amount_val = 0.0
+        val = amount
 
-    currency_val = str(currency).strip().upper() if currency else ""
-    if currency_val == "RUB":
-        return f"{amount_val:.0f} руб."
-    elif currency_val in ("USD", "EUR"):
-        return f"{amount_val:.0f} {currency_val}"
+    if currency == "RUB":
+        return f"{val:,.2f} руб."
+    elif currency == "USD":
+        return f"{val:,.2f} USD"
+    elif currency == "EUR":
+        return f"{val:,.2f} EUR"
     else:
-        return f"{amount_val:.2f} {currency_val}"
+        return f"{val:,.2f}"
 
 
-def mask_sensitive_info(transaction: Dict[str, Any]) -> Dict[str, Any]:
-    """Маскирует чувствительные данные в одной транзакции (карта/счёт)."""
-    t = transaction.copy()
+def mask_sensitive_info(transaction: Dict[Any, Any]) -> Dict[str, Any]:
+    # Приводим все ключи к str, чтобы дальше не было проблем с типами
+    tx = {str(k): v for k, v in transaction.items()}
 
-    card = t.get("card")
+    card = tx.get("card_number")
+    account = tx.get("account")
+
+    masked_card = None
+    masked_account = None
+
     if card:
         try:
-            t["card"] = get_mask_card_number(str(card))
+            masked_card = get_mask_card_number(str(card))
         except Exception:
-            # Если маска не удалась, оставляем как есть или ставим заглушку
-            t["card"] = "**** **** **** ****"
+            masked_card = "[ошибка маскирования]"
 
-    account = t.get("account")
     if account:
         try:
-            t["account"] = get_mask_account(str(account))
+            masked_account = get_mask_account(str(account))
         except Exception:
-            t["account"] = "********"
+            masked_account = "[ошибка маскирования]"
 
-    return t
+    tx["_masked_card"] = masked_card
+    tx["_masked_account"] = masked_account
+    return tx
 
 
-def print_transactions(transactions: List[Dict[Any, Any]]) -> None:
-    if not transactions:
-        print("Не найдено ни одной транзакции, подходящей под ваши условия фильтрации.")
+def print_transaction(tx: Dict[str, Any], idx: int) -> None:
+    date_str = tx.get("date", "?")
+    description = tx.get("description", tx.get("operation", "Неизвестная операция"))
+    amount = tx.get("amount")
+    currency = tx.get("currency", "").upper()
+    card = tx.get("_masked_card")
+    account = tx.get("_masked_account")
+
+    print(f"{date_str} {description}")
+
+    if account:
+        print(f"Счет {account}")
+    elif card:
+        print(f"Карта {card}")
+
+    amount_str = format_currency_amount(amount, currency)
+    print(f"Сумма: {amount_str}")
+    print()  # пустая строка между транзакциями
+
+
+def print_category_stats(transactions: List[Dict[str, Any]]) -> None:
+    """Выводит статистику по категориям транзакций."""
+    counter = count_by_category(transactions)
+
+    if not counter:
+        print("Статистика по категориям недоступна (нет транзакций).")
         return
 
-    print(f"\nВсего банковских операций в выборке: {len(transactions)}\n")
-    for t in transactions:
-        masked = mask_sensitive_info(t)
+    print("📊 Статистика по категориям:")
+    total = sum(counter.values())
+    for category, count in counter.most_common():
+        percent = (count / total) * 100
+        print(f" {category}: {count} шт. ({percent:.1f}%)")
+    print()
 
-        date = masked.get("date", "")
-        desc = masked.get("description", "")
-        account = masked.get("account", "")
-        amount = masked.get("amount")
-        currency = masked.get("currency", "")
 
-        formatted_amount = format_amount(amount, currency)
 
-        print(f"{date} {desc}")
-        if account:
-            print(account)
-        print(f"Сумма: {formatted_amount}\n")
+# ОСНОВНАЯ ЛОГИКА (MAIN)
+
 
 
 def main() -> None:
@@ -136,59 +130,99 @@ def main() -> None:
     print("2. Получить информацию о транзакциях из CSV-файла")
     print("3. Получить информацию о транзакциях из XLSX-файла")
 
-    choice = input().strip()
+    choice = input("Ваш выбор: ").strip()
 
-    # Вычисляем путь к data относительно расположения main.py
-    current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file)  # обычно это корень, если запускаешь python main.py
-    data_dir = os.path.join(current_dir, "data")
+    all_transactions: List[Dict[str, Any]] = []
 
-    file_path = None
-    transactions: List[Dict[str, Any]] = []
-
+    # Безопасное получение данных: если функция вернёт не list, делаем пустой список
+    raw_data: Any = []
     if choice == "1":
         print("Программа: Для обработки выбран JSON-файл.")
-        file_path = os.path.join(data_dir, "transactions.json")
-        transactions = load_json_transactions(file_path)
+        raw_data = load_json_transactions(json_path)
     elif choice == "2":
         print("Программа: Для обработки выбран CSV-файл.")
-        file_path = os.path.join(data_dir, "transactions.csv")
-        transactions = load_csv_transactions(file_path)
+        raw_data = load_csv_transactions(csv_path)
     elif choice == "3":
         print("Программа: Для обработки выбран XLSX-файл.")
-        file_path = os.path.join(data_dir, "transactions_excel.xlsx")
-        transactions = load_excel_transactions(file_path)
+        raw_data = load_excel_transactions(excel_path)
     else:
-        print("Программа: Неверный пункт меню. Завершение работы.")
+        print("Программа: Неверный выбор. Завершение работы.")
         return
 
-    if not transactions:
-        print("Программа: Не удалось загрузить транзакции (файл пуст или не найден).")
+    # Гарантируем, что у нас именно список
+    if isinstance(raw_data, list):
+        all_transactions = raw_data
+    else:
+        all_transactions = []
+        print("⚠️ Предупреждение: функция загрузки вернула не список. Данные не загружены.")
         return
 
-    status = get_valid_status()
+    if not all_transactions:
+        print("Программа: Не найдено ни одной транзакции в выбранном файле.")
+        return
 
-    sort_choice = input("Программа: Отсортировать операции по дате? Да/Нет\n").strip().lower()
-    do_sort = sort_choice in ("да", "д", "yes", "y")
+    # --- Фильтрация по статусу ---
+    target_status = get_valid_status()
+    filtered = filter_by_state(all_transactions, state=target_status)
 
-    ascending = True
-    if do_sort:
-        order_choice = input("Программа: Отсортировать по возрастанию или по убыванию?\n").strip().lower()
-        ascending = order_choice in ("по возрастанию", "возрастание", "asc", "a", "да", "д")
+    if not filtered:
+        print("Программа: Не найдено ни одной транзакции, подходящей под ваши условия фильтрации.")
+        return
 
-    rub_choice = input("Программа: Выводить только рублевые транзакции? Да/Нет\n").strip().lower()
-    only_rub = rub_choice in ("да", "д", "yes", "y")
+    # --- Сортировка по дате ---
+    sort_date_input = input("Программа: Отсортировать операции по дате? Да/Нет\n> ").strip().lower()
+    sorted_result = filtered
 
-    search_choice = (
-        input("Программа: Отфильтровать список транзакций по определённому слову в описании? Да/Нет\n").strip().lower()
+    if sort_date_input in ("да", "д", "yes", "y"):
+        order_input = input("Программа: Отсортировать по возрастанию или по убыванию?\n> ").strip().lower()
+        reverse_order = order_input in ("убыванию", "по убыванию", "desc", "down")
+        sorted_result = sort_by_date(filtered, reverse_order=reverse_order)
+
+    # --- Только рублёвые транзакции (через готовую функцию) ---
+    rub_only_input = input("Программа: Выводить только рублёвые транзакции? Да/Нет\n> ").strip().lower()
+    rub_only = rub_only_input in ("да", "д", "yes", "y")
+
+    if rub_only:
+        sorted_result = filter_rub_transactions(sorted_result)
+        print("✅ Отфильтрованы только RUB транзакции.")
+    else:
+        print("✅ Выводим все транзакции.")
+
+    # --- Поиск по слову в описании ---
+    search_input = (
+        input("Программа: Отфильтровать список транзакций по определённому слову в описании? Да/Нет\n> ")
+        .strip()
+        .lower()
     )
-    search_text = None
-    if search_choice in ("да", "д", "yes", "y"):
-        search_text = input("Программа: Введите слово для поиска в описании:\n").strip()
+    search_term = ""
+    if search_input in ("да", "д", "yes", "y"):
+        search_term = input("Программа: Введите слово для поиска в описании:\n> ").strip().lower()
 
-    final_list = filter_transactions(transactions, status, only_rub, search_text)
+    if search_term:
+        sorted_result = [
+            tx
+            for tx in sorted_result
+            if search_term in str(tx.get("description", "")).lower()
+            or search_term in str(tx.get("operation", "")).lower()
+        ]
 
-    if do_sort:
-        final_list = sort_transactions(final_list, ascending=ascending)
+    # --- Маскирование чувствительных данных ---
+    masked_list = [mask_sensitive_info(tx) for tx in sorted_result]
 
-    print_transactions(final_list)
+    # --- Вывод итогового списка ---
+    print("Программа: Распечатываю итоговый список транзакций...\n")
+    print(f"Всего банковских операций в выборке: {len(masked_list)}\n")
+
+    if len(masked_list) == 0:
+        print("Программа: Не найдено ни одной транзакции, подходящей под ваши условия фильтрации.")
+        return
+
+    for i, tx in enumerate(masked_list):
+        print_transaction(tx, i + 1)
+
+    # --- Статистика по категориям ---
+    print_category_stats(masked_list)
+
+
+if __name__ == "__main__":
+    main()
