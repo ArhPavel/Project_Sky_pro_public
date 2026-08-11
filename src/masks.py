@@ -1,3 +1,4 @@
+# src/masks.py
 import logging
 import os
 
@@ -27,7 +28,25 @@ class CardNumberError(ValueError):
     pass
 
 
+def mask_card_full(card_number: str) -> str:
+    """Маскирует номер карты в формате: XXXX XX** **** XXXX"""
+    clean = card_number.replace(" ", "").replace("-", "")
+
+    if len(clean) != 16 or not clean.isdigit():
+        logger.error("Некорректный номер карты для полной маски: %r", card_number)
+        raise CardNumberError("Номер карты должен содержать ровно 16 цифр.")
+
+    part1 = clean[:4]
+    part2 = clean[4:8]
+    part4 = clean[12:]
+
+    masked = f"{part1} {part2[:2]}** **** {part4}"
+    logger.debug("Полная маска карты: %s", masked)
+    return masked
+
+
 def get_mask_card_number(card_number: str) -> str:
+    """Старый стиль маски: **** ****."""
     if not isinstance(card_number, str):
         logger.error("Номер карты должен быть строкой. Получено: %r", card_number)
         raise CardNumberError("Номер карты должен быть строкой.")
@@ -35,19 +54,16 @@ def get_mask_card_number(card_number: str) -> str:
     clean_number = card_number.replace(" ", "").replace("-", "")
 
     if len(clean_number) != 16 or not clean_number.isdigit():
-        logger.error(
-            "Некорректный номер карты: ожидается 16 цифр. Получено: %r (длина %d)",
-            card_number,
-            len(clean_number),
-        )
+        logger.error("Некорректный номер карты: ожидается 16 цифр. Получено: %r", card_number)
         raise CardNumberError("Некорректный номер карты: ожидается 16 цифр.")
 
     masked = f"{clean_number[:4]} **** **** {clean_number[-4:]}"
-    logger.debug("Замаскирован номер карты: %s", masked)
+    logger.debug("Замаскирован номер карты (краткий): %s", masked)
     return masked
 
 
 def get_mask_account(account_number: str) -> str:
+    """Маскирует номер счета, оставляя последние 4 цифры."""
     if not isinstance(account_number, str):
         logger.error("Номер счёта должен быть строкой. Получено: %r", account_number)
         raise CardNumberError("Номер счёта должен быть строкой.")
@@ -59,18 +75,10 @@ def get_mask_account(account_number: str) -> str:
         raise CardNumberError("Номер счёта должен содержать только цифры.")
 
     if len(clean_account) < 4:
-        logger.error(
-            "Слишком короткий номер счёта: %r (требуется минимум 4 цифры)",
-            account_number,
-        )
+        logger.error("Слишком короткий номер счёта: %r", account_number)
         raise CardNumberError("Слишком короткий номер счёта (требуется минимум 4 цифры).")
 
     last_four = clean_account[-4:]
     result = f"**{last_four}"
-
-    logger.debug(
-        "Замаскирован номер счёта: исходный=%s, результат=%s",
-        account_number,
-        result,
-    )
+    logger.debug("Замаскирован номер счёта: результат=%s", result)
     return result
