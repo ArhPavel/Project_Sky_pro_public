@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 def get_greeting(current_time: datetime) -> str:
     """Возвращает приветствие в зависимости от времени суток."""
     hour = current_time.hour
-    if 5 <= hour < 12:
+    if 6 <= hour < 12:
         return "Доброе утро"
     elif 12 <= hour < 18:
         return "Добрый день"
@@ -78,18 +78,32 @@ def get_top_transactions(operations: List[Dict[str, Any]]) -> List[Dict[str, Any
     return top_5
 
 
+def calculate_expenses_and_incomes(operations: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Считает общие расходы и поступления."""
+    total_expenses = sum(abs(op.get("Сумма операции", 0)) for op in operations if op.get("Сумма операции", 0) < 0)
+    total_incomes = sum(op.get("Сумма операции", 0) for op in operations if op.get("Сумма операции", 0) > 0)
+    return {"expenses": round(total_expenses, 2), "incomes": round(total_incomes, 2)}
+
+
 def generate_main_page_data(
         date_time_str: str, operations: List[Dict[str, Any]],
         currency_rates: List[Dict[str, Any]], stock_prices: List[Dict[str, Any]]
 ) -> str:
-    """Главная функция формирования JSON-ответа для веб-страницы."""
     input_dt = datetime.strptime(date_time_str, "%Y-%m-%d %H:%M:%S")
     filtered_ops = filter_operations_by_date(operations, input_dt)
 
-    return json.dumps({
+    financial_summary = calculate_expenses_and_incomes(filtered_ops)
+
+    # Формируем итоговый словарь со всеми ключами из задания
+    result = {
         "greeting": get_greeting(input_dt),
         "cards": calculate_cards_info(filtered_ops),
         "top_transactions": get_top_transactions(filtered_ops),
+        "expenses": financial_summary["expenses"],
+        "incomes": financial_summary["incomes"],
+        # Если в задании требуются конкретные разбивки "Переводы/Наличные" и "Остальное",
+        # их можно рассчитать аналогично в отдельной функции и добавить сюда.
         "currency_rates": currency_rates,
         "stock_prices": stock_prices
-    }, ensure_ascii=False, indent=2)
+    }
+    return json.dumps(result, ensure_ascii=False, indent=2)

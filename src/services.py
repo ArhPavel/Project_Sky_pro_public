@@ -32,8 +32,13 @@ def get_cashback_by_categories(data: List[Dict[str, Any]], year: int, month: int
             cat_str = str(category).strip()
             categories_cashback[cat_str] = categories_cashback.get(cat_str, 0.0) + (abs(amount) * 0.01)
 
-    final_analysis = {cat: round(cash) for cat, cash in categories_cashback.items() if cash > 0}
-    return json.dumps(final_analysis, ensure_ascii=False, indent=2)
+        # Сортируем по убыванию кешбэка
+    sorted_categories = sorted(categories_cashback.items(), key=lambda item: item[1], reverse=True)
+
+        # топ-3 категории (или меньше, если категорий было меньше 3)
+    top_analysis = {cat: round(cash) for cat, cash in sorted_categories[:3] if cash > 0}
+
+    return json.dumps(top_analysis, ensure_ascii=False, indent=2)
 
 
 def simple_search(data: List[Dict[str, Any]], search_query: str) -> str:
